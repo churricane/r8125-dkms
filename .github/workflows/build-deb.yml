@@ -89,5 +89,157 @@ jobs:
           if [ -n "${{ github.event.inputs.source_url }}" ]; then
             echo "Downloading driver tarball from provided URL"
             curl -L --fail "${{ github.event.inputs.source_url }}" -o driver.tar.bz2
-            exit 0](#)
-
+            exit 0
+          fi
+
+          # 3) Try common release asset pattern in THIS repository (if someone uploaded it here)
+          RELEASE_URL_THIS="https://github.com/${{ github.repository }}/releases/download/${PKGVER}-1/r8125-${PKGVER}.tar.bz2"
+          echo "Trying release asset in this repo: $RELEASE_URL_THIS"
+          if curl -L --fail -o driver.tar.bz2 "$RELEASE_URL_THIS"; then
+            echo "Downloaded driver from this repo release asset"
+            exit 0
+          fi
+
+          # 4) Try .SRCINFO source URL if present (this may point to devome's release or other host)
+          if [ -n "${SRC_SOURCE_URL-}" ]; then
+            echo "Trying source URL from .SRCINFO: $SRC_SOURCE_URL"
+            if curl -L --fail -o driver.tar.bz2 "$SRC_SOURCE_URL"; then
+              echo "Downloaded driver from .SRCINFO source URL"
+              exit 0
+            fi
+          fi
+
+          # 5) As a last resort, try a more general GitHub release URL computed from common pattern
+          FALLBACK_URL="https://github.com/devome/r8125-dkms/releases/download/${PKGVER}-1/r8125-${PKGVER}.tar.bz2"
+          echo "Trying fallback release URL: $FALLBACK_URL"
+          if curl -L --fail -o driver.tar.bz2 "$FALLBACK_URL"; then
+            echo "Downloaded driver from fallback devome release asset"
+            exit 0
+          fi
+
+          echo "ERROR: No driver tarball found in repo, no source_url provided, and no release asset available."
+          echo "Because Realtek uses verification, the workflow can't auto-download from realtek.com."
+          echo "Please either:"
+          echo "  - Add r8125-<version>.tar.bz2 into the repository root, or"
+          echo "  - Upload the tarball as a Release asset (name: r8125-<version>.tar.bz2), or"
+          echo "  - Provide a direct source_url when triggering the workflow."
+          exit 1
+
+      - name: Build Debian package (r8125-dkms .deb)
+        env:
+          PKGVER: ${{ env.PKGVER }}
+        run: |
+          set -euo pipefail
+          PKGVER=${PKGVER}
+          PKGNAME=r8125-dkms
+          PKGVER_FULL="${PKGVER}-1"
+
+          WORK=packdir
+          rm -rf "$WORK"
+          mkdir -p "$WORK/DEBIAN"
+
+          # control
+          if [ -f .CONTROL ]; then
+            sed "s/^Version:.*/Version: ${PKGVER_FULL}/" .CONTROL > "$WORK/DEBIAN/control"
+          else
+            cat > "$WORK/DEBIAN/control" <<EOF
+Package: ${PKGNAME}
+Version: ${PKGVER_FULL}
+Section: non-free/kernel
+Priority: optional
+Architecture: all
+Depends: dkms
+Description: dkms source for the r8125 network driver
+EOF
+          fi
+
+          # maintainer scripts
+          if [ -f postinst.sh ]; then
+            install -Dm755 postinst.sh "$WORK/DEBIAN/postinst"
+          fi
+          if [ -f prerm.sh ]; then
+            install -Dm755 prerm.sh "$WORK/DEBIAN/prerm"
+          fi
+
+          SRCDIR="$WORK/usr/src/r8125-${PKGVER}"
+          mkdir -p "$SRCDIR"
+
+          # try common compression formats
+          if tar -xjf driver.tar.bz2 -C "$SRCDIR" --strip-components=0 2>/dev/null; then
+            :
+          elif tar -xJf driver.tar.bz2 -C "$SRCDIR" --strip-components=0 2>/dev/null; then
+            :
+          elif tar -xzf driver.tar.bz2 -C "$SRCDIR" --strip-components=0 2>/dev/null; then
+            :
+          else
+            echo "Failed to extract driver tarball with known formats"
+            exit 1
+          fi
+
+          # copy local dkms.conf into src (some packages expect dkms.conf in src/)
+          if [ -f dkms.conf ]; then
+            install -Dm644 dkms.conf "$SRCDIR/src/dkms.conf"
+          fi
+
+          # docs
+          if [ -f README ]; then
+            install -Dm644 README "$WORK/usr/share/doc/${PKGNAME}/README"
+          fi
+
+          # permissions
+          find "$WORK" -type d -print0 | xargs -0 chmod 755 || true
+          find "$WORK" -type f -print0 | xargs -0 chmod 644 || true
+          [ -f "$WORK/DEBIAN/postinst" ] && chmod 755 "$WORK/DEBIAN/postinst" || true
+          [ -f "$WORK/DEBIAN/prerm" ] && chmod 755 "$WORK/DEBIAN/prerm" || true
+
+          OUTPUT="${PKGNAME}_${PKGVER_FULL}_all.deb"
+          dpkg-deb --build "$WORK" "$OUTPUT"
+          echo "PACKAGE_BUILT=$OUTPUT" >> $GITHUB_ENV
+
+      - name: Upload .deb artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: r8125-dkms-deb
+          path: |
+            ${{ env.PACKAGE_BUILT }}
+
+      - name: Create Release and upload asset (optional)
+        if: ${{ github.event.inputs.publish_release == 'true' }}
+        id: release
+        run: |
+          set -euo pipefail
+          PKGVER="${PKGVER}"
+          PKGVER_FULL="${PKGVER}-1"
+          ASSET="./${PKGNAME}_${PKGVER_FULL}_all.deb"
+
+          # release tag: use input release_tag if provided, otherwise generate unique tag per run
+          if [ -n "${{ github.event.inputs.release_tag }}" ]; then
+            TAG="${{ github.event.inputs.release_tag }}"
+          else
+            TAG="r8125-${PKGVER}-build-${{ github.run_number }}"
+          fi
+
+          # create release using GitHub API (GITHUB_TOKEN has write permission per workflow permissions)
+          echo "Creating release with tag: $TAG"
+          API_JSON=$(jq -n --arg tag "$TAG" --arg name "r8125-dkms ${PKGVER} (build #${{ github.run_number }})" --arg body "Automated build of r8125-dkms ${PKGVER} (workflow run ${{ github.run_number }})" '{ tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false }')
+          CREATE_RESP=$(curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" https://api.github.com/repos/${{ github.repository }}/releases -d "$API_JSON")
+          UPLOAD_URL=$(echo "$CREATE_RESP" | jq -r .upload_url | sed -e 's/{?name,label}//')
+          if [ "$UPLOAD_URL" = "null" ] || [ -z "$UPLOAD_URL" ]; then
+            echo "Failed to create release: $CREATE_RESP"
+            exit 1
+          fi
+          echo "Release created, upload_url=$UPLOAD_URL"
+          # upload asset
+          ASSET_NAME=$(basename "$ASSET")
+          echo "Uploading asset $ASSET_NAME"
+          curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/octet-stream" --data-binary @"$ASSET" "$UPLOAD_URL?name=$ASSET_NAME" | jq -r .browser_download_url > /tmp/asset_url || true
+          ASSET_URL=$(cat /tmp/asset_url || true)
+          echo "ASSET_URL=${ASSET_URL}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=${TAG}" >> $GITHUB_ENV
+
+      - name: Show release URL (if published)
+        if: ${{ github.event.inputs.publish_release == 'true' }}
+        run: |
+          echo "Release tag: $RELEASE_TAG"
+          echo "Asset URL: $ASSET_URL"
