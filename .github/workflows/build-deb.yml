@@ -209,6 +209,8 @@ jobs:
       - name: Create Release and upload asset (optional)
         if: ${{ github.event.inputs.publish_release == 'true' }}
         id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           PKGVER="${PKGVER}"
