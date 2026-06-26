@@ -196,6 +196,7 @@ jobs:
           OUTPUT="${PKGNAME}_${PKGVER_FULL}_all.deb"
           dpkg-deb --build "$WORK" "$OUTPUT"
           echo "PACKAGE_BUILT=$OUTPUT" >> $GITHUB_ENV
+          echo "PKGNAME=${PKGNAME}" >> $GITHUB_ENV
 
       - name: Upload .deb artifact
         if: always()
@@ -212,7 +213,8 @@ jobs:
           set -euo pipefail
           PKGVER="${PKGVER}"
           PKGVER_FULL="${PKGVER}-1"
-          ASSET="./${PKGNAME}_${PKGVER_FULL}_all.deb"
+          # Use PACKAGE_BUILT if available (exported by the build step), otherwise fallback
+          ASSET="./${PACKAGE_BUILT:-r8125-dkms_${PKGVER_FULL}_all.deb}"
 
           # release tag: use input release_tag if provided, otherwise generate unique tag per run
           if [ -n "${{ github.event.inputs.release_tag }}" ]; then
