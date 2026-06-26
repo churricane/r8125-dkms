@@ -1,3 +1,7 @@
+本项目fork自https://github.com/devome/r8125-dkms
+原项目需要makedeb编译，但是makedeb已经停止更新无法正常安装
+所以就请AI帮忙写了这个在线编译的Action
+
 ## 这是什么
 
 RealTek R8125B 网卡驱动的 DKMS 版本，启用 TX 多队列，启用 RSS，禁用 ASPM。
