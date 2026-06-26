@@ -1,3 +1,5 @@
+name: Build r8125-dkms
+
 # Build r8125-dkms .deb targeted for Debian 13 (trixie)
 # - 支持从仓库根的 tarball、workflow_dispatch 的 source_url、.SRCINFO 中的 source URL、或 Releases asset 下载源码
 # - 可选将生成的 .deb 上传为 GitHub Release asset（通过 publish_release 输入控制）
@@ -16,7 +18,7 @@ on:
         required: false
       publish_release:
         description: 'If "true", create a GitHub Release and upload the .deb as an asset'
-        required: true
+        required: false
         default: 'false'
       release_tag:
         description: 'Optional release tag to use (if omitted a tag including pkgver and run number will be created)'
