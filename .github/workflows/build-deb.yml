@@ -138,20 +138,21 @@ jobs:
           rm -rf "$WORK"
           mkdir -p "$WORK/DEBIAN"
 
-          # control
-          if [ -f .CONTROL ]; then
-            sed "s/^Version:.*/Version: ${PKGVER_FULL}/" .CONTROL > "$WORK/DEBIAN/control"
-          else
-            cat > "$WORK/DEBIAN/control" <<EOF
-            Package: ${PKGNAME}
-            Version: ${PKGVER_FULL}
-            Section: non-free/kernel
-            Priority: optional
-            Architecture: all
-            Depends: dkms
-            Description: dkms source for the r8125 network driver
-            EOF
-          fi
+        # control
+        if [ -f .CONTROL ]; then
+          sed "s/^Version:.*/Version: ${PKGVER_FULL}/" .CONTROL > "$WORK/DEBIAN/control"
+        else
+          # use printf to avoid here-doc/indentation issues inside YAML run block
+          printf '%s\n' \
+            "Package: ${PKGNAME}" \
+            "Version: ${PKGVER_FULL}" \
+            "Section: non-free/kernel" \
+            "Priority: optional" \
+            "Architecture: all" \
+            "Depends: dkms" \
+            "Description: dkms source for the r8125 network driver" \
+            > "$WORK/DEBIAN/control"
+        fi
 
           # maintainer scripts
           if [ -f postinst.sh ]; then
