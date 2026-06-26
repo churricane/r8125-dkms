@@ -143,14 +143,14 @@ jobs:
             sed "s/^Version:.*/Version: ${PKGVER_FULL}/" .CONTROL > "$WORK/DEBIAN/control"
           else
             cat > "$WORK/DEBIAN/control" <<EOF
-Package: ${PKGNAME}
-Version: ${PKGVER_FULL}
-Section: non-free/kernel
-Priority: optional
-Architecture: all
-Depends: dkms
-Description: dkms source for the r8125 network driver
-EOF
+            Package: ${PKGNAME}
+            Version: ${PKGVER_FULL}
+            Section: non-free/kernel
+            Priority: optional
+            Architecture: all
+            Depends: dkms
+            Description: dkms source for the r8125 network driver
+            EOF
           fi
 
           # maintainer scripts
