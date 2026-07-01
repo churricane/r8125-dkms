@@ -2,7 +2,7 @@
 
 _pkgname=r8125
 pkgname="${_pkgname}-dkms"
-pkgver=9.017.01
+pkgver=9.018.00
 pkgrel=1
 priority=optional
 section=non-free/kernel
@@ -16,11 +16,11 @@ conflicts=("${pkgname}" "realtek-${pkgname}")
 replaces=("realtek-${pkgname}")
 postinst="postinst.sh"
 prerm="prerm.sh"
-optdepends=('linux-headers-amd64: Build the module for Debian kernel'
-            'proxmox-default-headers: Build the module for Proxmox VE kernel')
-source=("https://github.com/devome/r8125-dkms/releases/download/${pkgver}-${pkgrel}/${_pkgname}-${pkgver}.tar.bz2"
+optdepends=('s!linux-headers-amd64: Build the module for Debian kernel'
+            's!proxmox-default-headers: Build the module for Proxmox VE kernel')
+source=("${_pkgname}-${pkgver}.tar.bz2::https://github.com/devome/${pkgname}/releases/download/${pkgver}-${pkgrel}/${_pkgname}-${pkgver}.tar.bz2"
         "dkms.conf")
-sha256sums=('be2c400e13e0120bedc7ef0ad91265392318042a6ed8a67b3f562b130ee15133'
+sha256sums=('66291cb5d4d3b359cfa0c9ca902028d9ce0f76065887cb64b4052dce4a676ff8'
             'afb4b4a62803309448ea698fb316d405337866ae3d7206ce52e9470c07c4a634')
 
 prepare() {
