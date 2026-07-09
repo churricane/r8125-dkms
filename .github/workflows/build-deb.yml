@@ -18,7 +18,7 @@ on:
       publish_release:
         description: 'If "true", create a GitHub Release and upload the .deb as an asset'
         required: false
-        default: 'false'
+        default: 'true'
       release_tag:
         description: 'Optional release tag to use (if omitted a tag including pkgver and run number will be created)'
         required: false
