@@ -71,12 +71,10 @@ jobs:
           # Try to extract first source URL from .SRCINFO (line starting with 'source = ')
           # Format: source = filename::url or source = url
           if [ -f .SRCINFO ]; then
-            #SRC_URL=$(grep -m1 '^source = ' .SRCINFO | sed -E 's/^source = //')
-            #if [ -n "$SRC_URL" ]; then
             SRC_LINE=$(grep -m1 '^source = ' .SRCINFO | sed -E 's/^source = //')
             if [ -n "$SRC_LINE" ]; then
               # Check if format is 'filename::url' and extract the URL part after ::
-              if [[ "$SRC_LINE" == *"::"* ]]; then
+              if echo "$SRC_LINE" | grep -q '::'; then
                 SRC_URL=$(echo "$SRC_LINE" | sed -E 's/^[^:]*:://')
               else
                 SRC_URL="$SRC_LINE"
