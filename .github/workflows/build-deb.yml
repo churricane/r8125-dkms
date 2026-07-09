@@ -3,6 +3,7 @@ name: Build r8125-dkms
 # Build r8125-dkms .deb targeted for Debian 13 (trixie)
 # - 支持从仓库根的 tarball、workflow_dispatch 的 source_url、.SRCINFO 中的 source URL、或 Releases asset 下载源码
 # - 可选将生成的 .deb 上传为 GitHub Release asset（通过 publish_release 输入控制）
+# - 同时上传源码 tarball 到 Release asset
 permissions:
   contents: write
 
@@ -82,6 +83,7 @@ jobs:
           if [ -n "$TAR" ]; then
             echo "Found tarball in repo: $TAR"
             cp "$TAR" driver.tar.bz2
+            echo "DRIVER_TARBALL_ORIGINAL=$TAR" >> $GITHUB_ENV
             exit 0
           fi
 
@@ -206,7 +208,7 @@ jobs:
           path: |
             ${{ env.PACKAGE_BUILT }}
 
-      - name: Create Release and upload asset (optional)
+      - name: Create Release and upload assets (.deb + source tarball)
         if: ${{ github.event.inputs.publish_release == 'true' }}
         id: release
         env:
@@ -216,7 +218,7 @@ jobs:
           PKGVER="${PKGVER}"
           PKGVER_FULL="${PKGVER}-1"
           # Use PACKAGE_BUILT if available (exported by the build step), otherwise fallback
-          ASSET="./${PACKAGE_BUILT:-r8125-dkms_${PKGVER_FULL}_all.deb}"
+          DEB_ASSET="./${PACKAGE_BUILT:-r8125-dkms_${PKGVER_FULL}_all.deb}"
 
           # release tag: use input release_tag if provided, otherwise generate unique tag per run
           if [ -n "${{ github.event.inputs.release_tag }}" ]; then
@@ -227,7 +229,7 @@ jobs:
 
           # create release using GitHub API (GITHUB_TOKEN has write permission per workflow permissions)
           echo "Creating release with tag: $TAG"
-          API_JSON=$(jq -n --arg tag "$TAG" --arg name "r8125-dkms ${PKGVER} (build #${{ github.run_number }})" --arg body "Automated build of r8125-dkms ${PKGVER} (workflow run ${{ github.run_number }})" '{ tag_name: $tag, name: $name, body: $body, draft: false, prerelease: false }')
+          API_JSON=$(jq -n --arg tag "$TAG" --arg name "r8125-dkms ${PKGVER} (build #${{ github.run_number }})" --arg body "Automated build of r8125-dkms ${PKGVER} (workflow run ${{ github.run_number }})")
           CREATE_RESP=$(curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Accept: application/vnd.github+json" https://api.github.com/repos/${{ github.repository }}/releases -d "$API_JSON")
           UPLOAD_URL=$(echo "$CREATE_RESP" | jq -r .upload_url | sed -e 's/{?name,label}//')
           if [ "$UPLOAD_URL" = "null" ] || [ -z "$UPLOAD_URL" ]; then
@@ -235,16 +237,34 @@ jobs:
             exit 1
           fi
           echo "Release created, upload_url=$UPLOAD_URL"
-          # upload asset
-          ASSET_NAME=$(basename "$ASSET")
-          echo "Uploading asset $ASSET_NAME"
-          curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/octet-stream" --data-binary @"$ASSET" "$UPLOAD_URL?name=$ASSET_NAME" | jq -r .browser_download_url > /tmp/asset_url || true
-          ASSET_URL=$(cat /tmp/asset_url || true)
-          echo "ASSET_URL=${ASSET_URL}" >> $GITHUB_ENV
+
+          # upload .deb asset
+          DEB_NAME=$(basename "$DEB_ASSET")
+          echo "Uploading .deb asset: $DEB_NAME"
+          curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/octet-stream" --data-binary @"$DEB_ASSET" "$UPLOAD_URL?name=$DEB_NAME" > /tmp/deb_upload_resp
+          DEB_ASSET_URL=$(cat /tmp/deb_upload_resp | jq -r .browser_download_url)
+          echo "DEB asset uploaded: $DEB_ASSET_URL"
+
+          # upload source tarball if it exists
+          if [ -f driver.tar.bz2 ]; then
+            SRC_NAME="r8125-${PKGVER}.tar.bz2"
+            echo "Uploading source tarball: $SRC_NAME"
+            curl -sSL -X POST -H "Authorization: token ${GITHUB_TOKEN}" -H "Content-Type: application/octet-stream" --data-binary @driver.tar.bz2 "$UPLOAD_URL?name=$SRC_NAME" > /tmp/src_upload_resp
+            SRC_ASSET_URL=$(cat /tmp/src_upload_resp | jq -r .browser_download_url)
+            echo "Source tarball uploaded: $SRC_ASSET_URL"
+            echo "SRC_ASSET_URL=${SRC_ASSET_URL}" >> $GITHUB_ENV
+          else
+            echo "Warning: driver.tar.bz2 not found, skipping source tarball upload"
+          fi
+
+          echo "DEB_ASSET_URL=${DEB_ASSET_URL}" >> $GITHUB_ENV
           echo "RELEASE_TAG=${TAG}" >> $GITHUB_ENV
 
       - name: Show release URL (if published)
         if: ${{ github.event.inputs.publish_release == 'true' }}
         run: |
           echo "Release tag: $RELEASE_TAG"
-          echo "Asset URL: $ASSET_URL"
+          echo ".deb asset URL: $DEB_ASSET_URL"
+          if [ -n "${SRC_ASSET_URL-}" ]; then
+            echo "Source tarball URL: $SRC_ASSET_URL"
+          fi
