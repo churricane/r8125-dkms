@@ -183,27 +183,45 @@ jobs:
           SRCDIR="$WORK/usr/src/r8125-${PKGVER}"
           mkdir -p "$SRCDIR"
 
+          # Use a temporary directory to extract
+          TEMP_EXTRACT="temp_extracted"
+          rm -rf "$TEMP_EXTRACT"
+          mkdir -p "$TEMP_EXTRACT"
+
           # try common compression formats
-          if tar -xjf driver.tar.bz2 -C "$SRCDIR" --strip-components=0 2>/dev/null; then
+          if tar -xjf driver.tar.bz2 -C "$TEMP_EXTRACT" 2>/dev/null; then
             :
-          elif tar -xJf driver.tar.bz2 -C "$SRCDIR" --strip-components=0 2>/dev/null; then
+          elif tar -xJf driver.tar.bz2 -C "$TEMP_EXTRACT" 2>/dev/null; then
             :
-          elif tar -xzf driver.tar.bz2 -C "$SRCDIR" --strip-components=0 2>/dev/null; then
+          elif tar -xzf driver.tar.bz2 -C "$TEMP_EXTRACT" 2>/dev/null; then
             :
           else
             echo "Failed to extract driver tarball with known formats"
             exit 1
           fi
 
-          # copy local dkms.conf into src (some packages expect dkms.conf in src/)
+          # Locate extracted src directory and flatten files to SRCDIR
+          EXTRACTED_DIR=$(find "$TEMP_EXTRACT" -maxdepth 1 -type d -name "r8125-*" | head -n1)
+          if [ -n "$EXTRACTED_DIR" ] && [ -d "$EXTRACTED_DIR/src" ]; then
+            cp -r "$EXTRACTED_DIR"/src/* "$SRCDIR/"
+          else
+            echo "Error: Could not locate extracted driver src directory"
+            exit 1
+          fi
+
+          # copy local dkms.conf and replace version placeholder
           if [ -f dkms.conf ]; then
-            install -Dm644 dkms.conf "$SRCDIR/src/dkms.conf"
+            sed "s/@PKGVER@/${PKGVER}/g" dkms.conf > "$SRCDIR/dkms.conf"
           fi
 
           # docs
-          if [ -f README ]; then
-            install -Dm644 README "$WORK/usr/share/doc/${PKGNAME}/README"
+          if [ -f "$EXTRACTED_DIR/README" ]; then
+            install -Dm644 "$EXTRACTED_DIR/README" "$WORK/usr/share/doc/${PKGNAME}/README"
+          elif [ -f README.md ]; then
+            install -Dm644 README.md "$WORK/usr/share/doc/${PKGNAME}/README"
           fi
+
+          rm -rf "$TEMP_EXTRACT"
 
           # permissions
           find "$WORK" -type d -print0 | xargs -0 chmod 755 || true
@@ -222,7 +240,7 @@ jobs:
         with:
           name: r8125-dkms-deb
           path: |
-            ${{ env.PACKAGE_BUILT }}
+            *.deb
 
       - name: Create Release and upload assets (.deb + source tarball)
         if: ${{ github.event.inputs.publish_release == 'true' }}

@@ -36,12 +36,44 @@ r8125-dkms:
 
 提供一个 Proxmox VE 安装本驱动的教程：https://evine.win/p/pve-install-realtek-8125-driver/
 
-## 如何自己编译
+## 如何构建安装包
 
-直接使用 [makedeb](https://docs.makedeb.org/) 来构建安装包，简单方便。先安装 [makedeb](https://docs.makedeb.org/)，然后在本仓库根目录下运行以下命令即可编译产生`r8125-dkms_<version>_all.deb`。
+本项目提供了两种构建 Debian/Ubuntu 安装包 (`r8125-dkms_<version>_all.deb`) 的方法：
 
-```shell
-makedeb
-```
+### 方法一：通过 GitHub Actions 在线构建（推荐，无需本地 Linux 环境）
 
-注：现在RealTEK针对下载驱动启用了验证码验证，所以 [makedeb](https://docs.makedeb.org/) 无法自动下载RealTEK的驱动源码压缩包，这时，你需要自行前往 [官网](https://www.realtek.com/Download/List?cate_id=584) 将 `2.5G Ethernet LINUX driver r8125` 驱动手动下载到仓库根目录，然后再运行上述命令。
+本项目已经配置了自动化 GitHub Actions 工作流，你可以非常方便地在云端完成打包并下载。
+
+1. **Fork 本仓库** 到你自己的 GitHub 账号下。
+2. 在你 Fork 后的仓库页面中，点击顶部的 **Actions** 标签页，并启用 Workflows。
+3. 在左侧列表选择 **Build r8125-dkms**。
+4. 点击右侧的 **Run workflow** 下拉菜单：
+   - **Optional direct URL to r8125 tarball**: 如果你有该驱动最新版本的直接下载直链，可以填入；如果不填，工作流将尝试自动读取仓库内的 `PKGBUILD` 版本，或从第三方托管的 Releases 获取。
+   - **Optional driver version**: 欲打包的驱动版本号（例如 `9.018.00`），如果留空将自动从 `PKGBUILD` 读取。
+   - **If "true", create a GitHub Release...**: 设为 `true`，构建成功后将自动在你的仓库创建一个 Release，你可以直接在 Release 页面下载打包好的 `.deb` 文件及源码包。
+5. 点击 **Run workflow** 按钮，等待 1-2 分钟构建完成后，在生成的 Artifacts 或 Release 页面中下载 `.deb` 安装包。
+
+---
+
+### 方法二：在本地 Linux 系统一键构建
+
+由于 `makedeb` 已经停止维护，本项目已移除对 `makedeb` 的依赖，并提供了一个基于纯 Bash 和 `dpkg-deb` 的超轻量本地一键打包脚本 `build.sh`。
+
+只要你使用的是 Debian / Ubuntu 或基于其的系统（如 Proxmox VE），均可在本地一键打包：
+
+1. **准备驱动源码包**（任选其一，推荐第一种）：
+   - **手动下载（推荐）**：由于 Realtek 官网加入了人机验证码，脚本可能无法直接从官网下载最新的源码。建议先前往 [Realtek 官网](https://www.realtek.com/Download/List?cate_id=584) 手动下载 `2.5G Ethernet LINUX driver r8125`（格式为 `.tar.bz2`，例如 `r8125-9.018.00.tar.bz2`），下载后直接放入本仓库的根目录下。
+   - **自动下载**：如果本地没有检测到驱动压缩包，`build.sh` 脚本在运行时也会尝试从已知的公共 Release 节点自动下载对应版本的源码。
+
+2. **给脚本赋予执行权限并运行**：
+   ```shell
+   chmod +x build.sh
+   ./build.sh
+   ```
+   *注：如果你想打包特定版本（如 `9.018.00`），也可以直接作为参数传入：`./build.sh 9.018.00`*
+
+3. **安装生成的软件包**：
+   构建完成后，会在根目录下生成 `r8125-dkms_<version>-1_all.deb`。运行以下命令即可安装：
+   ```shell
+   sudo dpkg -i r8125-dkms_*.deb
+   ```
