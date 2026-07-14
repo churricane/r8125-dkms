@@ -61,7 +61,16 @@ r8125-dkms:
 
 只要你使用的是 Debian / Ubuntu 或基于其的系统（如 Proxmox VE），均可在本地一键打包：
 
-1. **准备驱动源码包**（任选其一，推荐第一种）：
+1. **安装依赖**：
+   在开始构建之前，请确保你的系统已经安装了以下必要的构建工具和依赖包：
+   ```shell
+   sudo apt update
+   sudo apt install dkms build-essential linux-headers-amd64 \
+                    dpkg-dev tar bzip2 curl wget
+   ```
+   *注：如果你使用的是 Proxmox VE 8.0.3+，请将 `linux-headers-amd64` 替换为 `proxmox-default-headers`。*
+
+3. **准备驱动源码包**（任选其一，推荐第一种）：
    - **手动下载（推荐）**：由于 Realtek 官网加入了人机验证码，脚本可能无法直接从官网下载最新的源码。建议先前往 [Realtek 官网](https://www.realtek.com/Download/List?cate_id=584) 手动下载 `2.5G Ethernet LINUX driver r8125`（格式为 `.tar.bz2`，例如 `r8125-9.018.00.tar.bz2`），下载后直接放入本仓库的根目录下。
    - **自动下载**：如果本地没有检测到驱动压缩包，`build.sh` 脚本在运行时也会尝试从已知的公共 Release 节点自动下载对应版本的源码。
 
