@@ -189,11 +189,11 @@ jobs:
           mkdir -p "$TEMP_EXTRACT"
 
           # try common compression formats
-          if tar -xjf driver.tar.bz2 -C "$SRCDIR" --strip-components=0 2>/dev/null; then
+          if tar -xjf driver.tar.bz2 -C "$TEMP_EXTRACT" 2>/dev/null; then
             :
-          elif tar -xJf driver.tar.bz2 -C "$SRCDIR" --strip-components=0 2>/dev/null; then
+          elif tar -xJf driver.tar.bz2 -C "$TEMP_EXTRACT" 2>/dev/null; then
             :
-          elif tar -xzf driver.tar.bz2 -C "$SRCDIR" --strip-components=0 2>/dev/null; then
+          elif tar -xzf driver.tar.bz2 -C "$TEMP_EXTRACT" 2>/dev/null; then
             :
           else
             echo "Failed to extract driver tarball with known formats"
